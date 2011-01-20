@@ -3,19 +3,21 @@ use strictures 1;
 require Filter::Util::Call;
 
 sub import {
-    my ($class,$keyword) = @_;
+    no strict 'refs';
+    *{caller()."::keyword"} = *keyword;
+}
 
-    die "usage: use Devel::Declare::Evil 'keyword';" 
-        unless $keyword;
+sub keyword (@) {
+    my ($keyword, $code) = @_;
 
     my $keyword_class = caller;
 
-    # install targets import sub;
+    # install filter, code_generator, import subs
     no strict 'refs';
     *{"${keyword_class}::filter"} = _gen_filter($keyword_class, $keyword);
     *{"${keyword_class}::import"} = _gen_target_import($keyword_class, $keyword);
+    *{"${keyword_class}::code_generator"} = $code;
 }
-
 
 sub _gen_target_import {
     my ($keyword_class, $keyword) = @_;
@@ -51,7 +53,9 @@ sub _gen_filter {
         # ( ref count increases ) as method; is written out
         if (my $rc = delete $self->{refcount_was}) {
             if (svref_2object($self->{globref})->REFCNT > $rc) {
-                my $code = $self->generate_code($self->{name}, $self->{tokens});
+                my $code = $keyword_class->code_generator(
+                    $self->{name}, $self->{tokens}
+                );
                 $self->{tokens} = [];
                 $self->{tokens}[0] = "; $code";
             }
