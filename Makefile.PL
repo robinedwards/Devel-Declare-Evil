@@ -1,12 +1,15 @@
-use 5.012002;
+use 5.06;
 use ExtUtils::MakeMaker;
-# See lib/ExtUtils/MakeMaker.pm for details of how to influence
-# the contents of the Makefile that is written.
+
 WriteMakefile(
     NAME              => 'Devel::Declare::Evil',
-    VERSION_FROM      => 'lib/Devel/Declare/Evil.pm', # finds $VERSION
-    PREREQ_PM         => {}, # e.g., Module::Name => 1.1
-    ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
+    VERSION_FROM      => 'lib/Devel/Declare/Evil.pm',
+    PREREQ_PM         => {
+        strictures => 1,
+        'Filter::Util::Call' => 0,
+        'Test::More' => 0,
+    },
+    ($] >= 5.005 ?   
       (ABSTRACT_FROM  => 'lib/Devel/Declare/Evil.pm', # retrieve abstract from module
-       AUTHOR         => 'Robin Edwards <rob@local>') : ()),
+       AUTHOR         => 'Robin Edwards <robin.ge@gmail.com>') : ()),
 );

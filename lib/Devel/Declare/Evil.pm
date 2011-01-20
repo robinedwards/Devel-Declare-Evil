@@ -141,23 +141,21 @@ Devel::Declare::Evil - safe keywords using a source filter.
 
 =head1 EXPERIMENTAL
 
-This module is experimental, the following cases will break it: 
+This module is not at all robust (yet) the following cases will break it: 
 
-- Injection into anonymous blocks
-- New lines in signatures 
-- No space after method name
-
-I plan to fix these issues soon.
+- Injection into anonymous blocks (not supported yet)
+- New lines in signatures
+- No whitespace after method name
 
 =head1 HOW IT WORKS
 
 Installs an empty sub with a glob prototype for your keyword. Then records the current reference count of the keywords symbol.
+Filters through your code using Filter::Util::Call when a keyword is reached it's sent on to the perl interpreter.
+As the interpreter recognises the prototype the ref count for the symbol increases, allowing safe execution of your filter.
+The filter closes the call to the keyword and injects whatever code it needed.
+For the previous example the compiler actually ends up interpreting:
 
-Filters through perl code using Filter::Util::Call when a a keyword is reached its sent on to the perl interpreter. When the interpreter recognises the prototype the ref count for the keywords symbol increases, allowing safe execution of a filter.
-
-The filter closes the call to the keyword and injects whatever codes needed. For the method example the compiler ends up interpreting:
-
-    method; sub say_hello { my ($self, $name) = @_;
+    method; sub say_hello { my ($self, $name) = @_; ... }
 
 =head1 SEE ALSO
 
@@ -165,7 +163,7 @@ Devel::Declare
 
 =head1 CODE
 
-Adapted from Matt's Evil.pm:
+Adapted from Matt Trout's Evil.pm:
 
 http://sherlock.scsys.co.uk/~matthewt/evil.pm.txt
 
@@ -175,7 +173,7 @@ http://github.com/robinedwards/Devel-Declare-Evil
 
 Matt S Trout - E<lt>mst@shadowcat.co.ukE<gt> - original author of Evil.pm E<gt>
 
-Robin Edwards, E<lt>robin.ge@gmail.comE<gt>
+Robin Edwards, E<lt>robin.ge@gmail.comE<gt> - abstracted it into this module
 
 =head1 COPYRIGHT AND LICENSE
 
