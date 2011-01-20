@@ -1,0 +1,6 @@
+Changes
+Makefile.PL
+MANIFEST
+README
+t/Devel-Declare-Evil.t
+lib/Devel/Declare/Evil.pm

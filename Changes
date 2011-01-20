@@ -1,0 +1,6 @@
+Revision history for Perl extension Devel::Declare::Evil.
+
+0.01  Mon Jan 17 10:45:29 2011
+	- original version; created by h2xs 1.23 with options
+		-X -n Devel::Declare::Evil
+
