@@ -2,6 +2,8 @@ package Devel::Declare::Evil;
 use strictures 1;
 require Filter::Util::Call;
 
+our $VERSION = 0.0001;
+
 sub import {
     no strict 'refs';
     *{caller()."::keyword"} = *keyword;
@@ -97,3 +99,90 @@ sub _gen_filter {
 }
 
 1;
+
+__END__
+
+=head1 NAME
+
+Devel::Declare::Evil - safe keywords using a source filter.
+
+=head1 SYNOPSIS
+
+    package EvilMethods;
+    use Devel::Declare::Evil;
+
+    keyword method => sub {
+        my ($class, $name, $tokens) = @_;
+
+        my $snippet = join ' ', @$tokens;
+        my $unroll = ') = @_;';
+
+        if ($snippet =~ /^\s*\((.+)\)/) {
+            $unroll = ", $1) = \@_;";
+        }
+
+        return "sub $name {\n my (\$self $unroll";    
+    };
+    1;
+
+    # Somewhere in another file
+    package Bob;
+    use EvilMethods;
+
+    method new {
+        return bless {}, $self;
+    }
+
+    method say_hello ($name) {
+       say "Hi, $name!"; 
+    }
+
+    1;
+
+=head1 EXPERIMENTAL
+
+This module is experimental, the following cases will break it: 
+
+- Injection into anonymous blocks
+- New lines in signatures 
+- No space after method name
+
+I plan to fix these issues soon.
+
+=head1 HOW IT WORKS
+
+Installs an empty sub with a glob prototype for your keyword. Then records the current reference count of the keywords symbol.
+
+Filters through perl code using Filter::Util::Call when a a keyword is reached its sent on to the perl interpreter. When the interpreter recognises the prototype the ref count for the keywords symbol increases, allowing safe execution of a filter.
+
+The filter closes the call to the keyword and injects whatever codes needed. For the method example the compiler ends up interpreting:
+
+    method; sub say_hello { my ($self, $name) = @_;
+
+=head1 SEE ALSO
+
+Devel::Declare
+
+=head1 CODE
+
+Adapted from Matt's Evil.pm:
+
+http://sherlock.scsys.co.uk/~matthewt/evil.pm.txt
+
+http://github.com/robinedwards/Devel-Declare-Evil
+
+=head1 AUTHORS
+
+Matt S Trout - E<lt>mst@shadowcat.co.ukE<gt> - original author of Evil.pm E<gt>
+
+Robin Edwards, E<lt>robin.ge@gmail.comE<gt>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2010 by Robin Edwards
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.12.1 or,
+at your option, any later version of Perl 5 you may have available.
+
+=cut

@@ -1,6 +1,9 @@
 Changes
+lib/Devel/Declare/Evil.pm
 Makefile.PL
 MANIFEST
 README
-t/Devel-Declare-Evil.t
-lib/Devel/Declare/Evil.pm
+t/00-use.t
+t/lib/EvilMethods.pm
+t/lib/Example.pm
+t/method_example.t
