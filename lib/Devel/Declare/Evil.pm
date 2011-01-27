@@ -65,13 +65,14 @@ sub _gen_filter {
 
         $self->{sent}-- if $self->{sent};
 
+        # TODO: expecting bareword or start of block
         if($self->{sent} == 2) {
             ($self->{name}) = $self->{tokens}[0] =~ /\s?(.*)/;
         }
 
         if ($self->{sent} == 1) {
-            install_filter($self); # install filter again with reset sent
             $self->{sent} = 0;
+            install_filter($self); # install filter again with reset sent
             $self->{refcount_was} = svref_2object($self->{globref})->REFCNT;
             return 0;
         }
@@ -84,15 +85,19 @@ sub _gen_filter {
 
         my $status = Filter::Util::Call::filter_read();
         return $status unless $status;
+        
+        # don't tokenize lines that don't have a keyword
+        return 1 if ($self->{sent} == 0 && $_ !~ /$keyword/);
 
         # tokenize line
         my ($first, @save) = split(/(?=\s)/, $_);
         $self->{tokens} = \@save;
 
-        $_ = $first; # right out first word.
+        # handle 
+        $_ = $first; # write out first word.
 
         # spotted keyword
-        $self->{sent} = 3 if ($first eq $keyword); 
+        $self->{sent} = 3 if ($first eq $keyword);
 
         return 1;
     }
