@@ -1,5 +1,4 @@
 package Example;
-
 use lib 't/lib';
 use strictures 1;
 use EvilMethods;
@@ -49,12 +48,6 @@ method test_edge_case6
 )
 {
     return 1;
-}
-
-1;
-__END__
-my $foo = method {
-    return 1 if $self;
 }
 
 1;
