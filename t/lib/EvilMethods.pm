@@ -5,14 +5,14 @@ use Devel::Declare::Evil;
 keyword method => sub {
     my ($class, $name, $tokens) = @_;
 
-    my $snippet = join ' ', @$tokens;
+    my $snippet = join '', @$tokens;
     my $unroll = ') = @_;';
 
-    if ($snippet =~ /^\s*\((.+)\)/) {
+    if ($snippet =~ m/\s*\((.+)\)\s+/s) {
         $unroll = ", $1) = \@_;";
     }
 
-    return "sub $name {\n my (\$self $unroll";    
+    return "sub $name {\n my (\$self$unroll";    
 };
 
 1;

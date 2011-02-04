@@ -29,20 +29,30 @@ method test_edge_case3($a){
     return 1;
 }
 
+method test_edge_case4 
+{
+    return 1;
+}
+
+method test_edge_case5 
+($a,
+$b,
+$c)
+
+{
+    return 1 + $a + $b + $c;
+}
+
+method test_edge_case6
+(
+
+)
+{
+    return 1;
+}
+
 1;
 __END__
-method test_edge_case5 
-($a)
-
-{
-    return 1;
-}
-
-method test_edge_case6 
-{
-    return 1;
-}
-
 my $foo = method {
     return 1 if $self;
 }

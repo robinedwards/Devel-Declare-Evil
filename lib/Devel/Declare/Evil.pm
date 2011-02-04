@@ -7,8 +7,6 @@ require Filter::Util::Call;
 
 our $VERSION = 0.0001;
 
-our $IDENTIFIER_RE = qr/(?:(?:|::)(?:\w|::)*)/;
-
 sub import {
     no strict 'refs';
     *{caller()."::keyword"} = *keyword;
@@ -61,9 +59,18 @@ sub _gen_filter {
         # ( ref count increases ) as method is written out
         if (my $rc = delete $self->{refcount_was}) {
             if (svref_2object($self->{globref})->REFCNT > $rc) {
+                
+                while (!_start_of_block($self->{tokens})) {
+                    my $status = Filter::Util::Call::filter_read();
+                    return $status unless $status;
+                    push @{$self->{tokens}}, $_;
+                    $_ = '';
+                }
+
                 my $code = $keyword_class->code_generator(
                     $self->{name}, $self->{tokens}
                 );
+
                 delete $self->{tokens};
                 $self->{tokens}[0] = "; $code";
             }
@@ -122,6 +129,12 @@ sub _gen_filter {
         }
 
         return 1;
+    }
+}
+
+sub _start_of_block {
+    for my $tok (@{shift()}) {
+        return 1 if $tok =~ /\{/;
     }
 }
 

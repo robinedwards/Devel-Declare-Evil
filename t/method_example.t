@@ -1,6 +1,6 @@
 use strictures 1;
 use lib 't/lib';
-use Test::More tests => 10;
+use Test::More tests => 13;
 use_ok 'EvilMethods';
 use_ok 'Example';
 
@@ -15,3 +15,6 @@ is $obj->test_method_with_signature(1,1), 2, 'object method with signature';
 is $obj->test_edge_case1, 1, 'parse edge case 1';
 is $obj->test_edge_case2, 1, 'parse edge case 2';
 is $obj->test_edge_case3, 1, 'parse edge case 3';
+is $obj->test_edge_case4, 1, 'parse edge case 4';
+is $obj->test_edge_case5(1,1,1), 4, 'parse edge case 5';
+is $obj->test_edge_case6, 1, 'parse edge case 6';
