@@ -1,8 +1,13 @@
 package Devel::Declare::Evil;
-use strictures 1;
+use strict;
+use warnings;
+use Data::Dumper;
+#use strictures 1;
 require Filter::Util::Call;
 
 our $VERSION = 0.0001;
+
+our $IDENTIFIER_RE = qr/(?:(?:|::)(?:\w|::)*)/;
 
 sub import {
     no strict 'refs';
@@ -51,35 +56,43 @@ sub _gen_filter {
     return sub {
         my ($self) = @_;
 
-        # if we have a new keyword
-        # ( ref count increases ) as method; is written out
+        $self->{sent}-- if $self->{sent};
+
+        # ( ref count increases ) as method is written out
         if (my $rc = delete $self->{refcount_was}) {
             if (svref_2object($self->{globref})->REFCNT > $rc) {
                 my $code = $keyword_class->code_generator(
                     $self->{name}, $self->{tokens}
                 );
-                $self->{tokens} = [];
+                delete $self->{tokens};
                 $self->{tokens}[0] = "; $code";
             }
         }
 
-        $self->{sent}-- if $self->{sent};
-
-        # TODO: expecting bareword or start of block
-        if($self->{sent} == 2) {
-            ($self->{name}) = $self->{tokens}[0] =~ /\s?(.*)/;
-        }
-
+        # reinstall filter
         if ($self->{sent} == 1) {
             $self->{sent} = 0;
-            install_filter($self); # install filter again with reset sent
+            install_filter($self);
             $self->{refcount_was} = svref_2object($self->{globref})->REFCNT;
             return 0;
         }
 
-        # write out whatever we have tokens
+        # write out a token
         if (@{$self->{tokens}}) {
-            $_ = shift(@{$self->{tokens}});
+
+            my $toke = shift @{$self->{tokens}};
+
+            if ($self->{sent} == 2) {
+                # write out anything that isn't part of bareword in second pass.
+                if(my ($ident, $stuff) = $toke =~ /(\s?\w+)(\W.*)/){
+                    $self->{tokens}[0] = $stuff . $self->{tokens}[0];
+                    $toke = $ident;
+                }
+
+                ($self->{name}) = $toke =~ /\s?(.*)/;
+            }
+
+            $_ = $toke;
             return 1;
         }
 
@@ -92,12 +105,21 @@ sub _gen_filter {
         # tokenize line
         my ($first, @save) = split(/(?=\s)/, $_);
         $self->{tokens} = \@save;
-
-        # handle 
-        $_ = $first; # write out first word.
-
+        
         # spotted keyword
-        $self->{sent} = 3 if ($first eq $keyword);
+        if ($first =~ /$keyword(.*)/) {
+            $_ = $keyword;
+
+            if (my $extra = $1) {
+                unshift @{$self->{tokens}}, $extra;
+
+                if ($extra =~ /^[\(|\{]/) {
+                    $self->{is_anon} = 1;
+                }
+            }
+
+            $self->{sent} = 3
+        }
 
         return 1;
     }

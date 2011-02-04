@@ -16,21 +16,21 @@ method test_method {
     return 1 if $self;
 }
 
-1;
-
-=cut
 method test_edge_case1{
     return 1;
 }
-
+ 
 method test_edge_case2($a) {
     return 1;
 }
+
 
 method test_edge_case3($a){
     return 1;
 }
 
+1;
+__END__
 method test_edge_case5 
 ($a)
 
