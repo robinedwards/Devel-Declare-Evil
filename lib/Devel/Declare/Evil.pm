@@ -106,25 +106,15 @@ sub _gen_filter {
         my $status = Filter::Util::Call::filter_read();
         return $status unless $status;
         
-        # don't tokenize lines that don't have a keyword
+        # no keyword
         return 1 if ($self->{sent} == 0 && $_ !~ /$keyword/);
 
         # tokenize line
         my ($first, @save) = split(/(?=\s)/, $_);
         $self->{tokens} = \@save;
         
-        # spotted keyword
-        if ($first =~ /$keyword(.*)/) {
-            $_ = $keyword;
-
-            if (my $extra = $1) {
-                unshift @{$self->{tokens}}, $extra;
-
-                if ($extra =~ /^[\(|\{]/) {
-                    $self->{is_anon} = 1;
-                }
-            }
-
+        if ($first =~ /$keyword/) {
+            $_ = $first;
             $self->{sent} = 3
         }
 
