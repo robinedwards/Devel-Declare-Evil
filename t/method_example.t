@@ -1,7 +1,6 @@
 use strictures 1;
 use lib 't/lib';
-use Test::More tests => 13;
-use_ok 'EvilMethods';
+use Test::More tests => 12;
 use_ok 'Example';
 
 is Example->test_method, 1, 'class method ';
