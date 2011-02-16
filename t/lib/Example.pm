@@ -50,4 +50,10 @@ method test_edge_case6
     return 1;
 }
 
+method test_edge_case7 {
+    1
+}method test_edge_case8 {
+    1
+}
+
 1;

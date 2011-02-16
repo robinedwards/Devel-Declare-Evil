@@ -1,6 +1,6 @@
 use strictures 1;
 use lib 't/lib';
-use Test::More tests => 12;
+use Test::More tests => 14;
 use_ok 'Example';
 
 is Example->test_method, 1, 'class method ';
@@ -17,3 +17,5 @@ is $obj->test_edge_case3, 1, 'parse edge case 3';
 is $obj->test_edge_case4, 1, 'parse edge case 4';
 is $obj->test_edge_case5(1,1,1), 4, 'parse edge case 5';
 is $obj->test_edge_case6, 1, 'parse edge case 6';
+is $obj->test_edge_case7, 1, 'parse edge case 7';
+is $obj->test_edge_case8, 1, 'parse edge case 8';

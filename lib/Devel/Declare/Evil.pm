@@ -31,10 +31,9 @@ sub _gen_target_import {
         my $target = caller;
     
         my $glob = do { no strict 'refs'; \*{"${target}::$keyword"} };
-        *{$glob} = sub (*) { };
-
         my $object = bless {
             tokens => [], globref => $glob, sent => 0, target => $target,
+            is_anon => 0,
         }, $keyword_class;
 
         use B 'svref_2object';
@@ -56,23 +55,32 @@ sub _gen_filter {
 
         $self->{sent}-- if $self->{sent};
 
-        # ( ref count increases ) as method is written out
+        # ( ref count increases ) as method is matched
         if (my $rc = delete $self->{refcount_was}) {
             if (svref_2object($self->{globref})->REFCNT > $rc) {
-                
-                while (!_start_of_block($self->{tokens})) {
-                    my $status = Filter::Util::Call::filter_read();
-                    return $status unless $status;
-                    push @{$self->{tokens}}, $_;
-                    $_ = '';
+
+                unless ($self->{is_anon} == 2) {                
+                    while (!_start_of_block($self->{tokens})) {
+                        my $status = Filter::Util::Call::filter_read();
+                        return $status unless $status;
+                        push @{$self->{tokens}}, $_;
+                        $_ = '';
+                    }
                 }
 
-                my $code = $keyword_class->code_generator(
-                    $self->{name}, $self->{tokens}
-                );
+                my $code;
 
-                delete $self->{tokens};
-                $self->{tokens}[0] = "; $code";
+                if ($self->{is_anon} > 0) {
+                    $code = $keyword_class->anon_code_generator(
+                        $self->{tokens}
+                    );
+                } else {
+                    $code = "; ". $keyword_class->code_generator(
+                        $self->{name}, $self->{tokens}
+                    );
+                }
+
+                $self->{tokens} = [$code];
             }
         }
 
@@ -90,13 +98,20 @@ sub _gen_filter {
             my $toke = shift @{$self->{tokens}};
 
             if ($self->{sent} == 2) {
-                # write out anything that isn't part of bareword in second pass.
                 if(my ($ident, $stuff) = $toke =~ /(\s?\w+)(\W.*)/){
                     $self->{tokens}[0] = $stuff . $self->{tokens}[0];
                     $toke = $ident;
                 }
+                
+                if(($self->{name}) = $toke =~ /\s?(\w+)/) {
+                    *{$self->{globref}} = sub (*) {};
+                } else {
+                    # 2 == anon with sig.
+                    $self->{is_anon} = 1 if $toke =~ /\s?\(/;
+                    $self->{is_anon} = 2 if $toke =~ /^\s?\{/;
 
-                ($self->{name}) = $toke =~ /\s?(.*)/;
+                    *{$self->{globref}} = sub (&) {shift};
+                }
             }
 
             $_ = $toke;
@@ -105,20 +120,23 @@ sub _gen_filter {
 
         my $status = Filter::Util::Call::filter_read();
         return $status unless $status;
-        
-        # no keyword
+
         return 1 if ($self->{sent} == 0 && $_ !~ /$keyword/);
 
-        # tokenize line
-        my ($first, @save) = split(/(?=\s)/, $_);
-        $self->{tokens} = \@save;
-        
-        if ($first =~ /$keyword/) {
-            $_ = $first;
-            $self->{sent} = 3
-        }
+        $self->{tokens} = [ split /(?=\s)/, $_ ];
 
-        return 1;
+        $_ = '';
+
+        while (my $tok = shift @{$self->{tokens}}) {
+            if ($tok !~ /$keyword/) {
+                $_ .= $tok;
+            } else {
+                # TODO handler method{ / method( / ;method
+                $_ .= $tok;
+                $self->{sent} = 3;
+                return 1;
+            }
+        }
     }
 }
 
