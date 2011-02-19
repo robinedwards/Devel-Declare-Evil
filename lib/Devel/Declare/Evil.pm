@@ -3,6 +3,7 @@ use strictures 1;
 use List::Util 'first';
 use B 'svref_2object';
 require Filter::Util::Call;
+use namespace::autoclean;
 
 our $VERSION = 0.0001;
 
