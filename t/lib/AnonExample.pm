@@ -1,7 +1,7 @@
-package AnonMethodsExample;
+package AnonExample;
 use lib 't/lib';
 use strictures 1;
-use EvilMethods;
+use MethodKeyword;
 
 sub new { return bless {}, __PACKAGE__; }
 

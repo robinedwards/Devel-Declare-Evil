@@ -1,149 +1,126 @@
 package Devel::Declare::Evil;
-use strict;
-use warnings;
-use Data::Dumper;
-#use strictures 1;
+use strictures 1;
+use List::Util 'first';
+use B 'svref_2object';
 require Filter::Util::Call;
 
 our $VERSION = 0.0001;
 
-sub import {
-    no strict 'refs';
-    *{caller()."::keyword"} = *keyword;
+sub install {
+    my ($class, %args) = @_;
+
+    my $target  = $args{into};
+    my $keyword = $args{name};
+
+    my $glob = do { no strict 'refs'; \*{"${target}::$keyword"} };
+
+    my $filter = bless {
+        keyword => $keyword,
+        tokens  => [], 
+        globref => $glob, 
+        target  => $target,
+        is_anonymous => 0,
+    }, $class;
+
+    $class->_install_filter($filter);
 }
 
-sub keyword (@) {
-    my ($keyword, $code) = @_;
+sub tokens          { @{$_[0]->{tokens}} }
+sub keyword         { $_[0]->{keyword} }
+sub name            { $_[0]->{name} }
+sub is_anonymous    { $_[0]->{is_anonymous} }
 
-    my $keyword_class = caller;
-
-    # install filter, code_generator, import subs
-    no strict 'refs';
-    *{"${keyword_class}::filter"} = _gen_filter($keyword_class, $keyword);
-    *{"${keyword_class}::import"} = _gen_target_import($keyword_class, $keyword);
-    *{"${keyword_class}::code_generator"} = $code;
+sub _install_filter {
+    $_[1]->{refcount_was} = svref_2object($_[1]->{globref})->REFCNT;
+    $_[1]->{sent}         = 0;
+    Filter::Util::Call::real_import($_[1], ref($_[1]), 0);
 }
 
-sub _gen_target_import {
-    my ($keyword_class, $keyword) = @_;
+sub filter {
+    my ($self) = @_;
 
-    return sub {
-        my $target = caller;
-    
-        my $glob = do { no strict 'refs'; \*{"${target}::$keyword"} };
-        my $object = bless {
-            tokens => [], globref => $glob, sent => 0, target => $target,
-            is_anon => 0,
-        }, $keyword_class;
+    $self->{sent}-- if $self->{sent};
 
-        use B 'svref_2object';
+    # ( ref count increases ) as method is matched
+    if (my $rc = delete $self->{refcount_was}) {
+        if (svref_2object($self->{globref})->REFCNT > $rc) {
 
-        install_filter($object);
-    };
-}
+            unless ($self->is_anonymous == 2) { 
+                return unless $self->_scan_till_block;
+            }
 
-sub install_filter {
-    my ($object) = @_;
-    Filter::Util::Call::real_import($object, ref($object), 0);
-}
+            my $code = ($self->is_anonymous > 0)
+                ? $self->anonymous_inject
+                : "; ". $self->named_inject;
 
-sub _gen_filter {
-    my ($keyword_class, $keyword) = @_;
+            $self->{tokens} = [$code];
+        }
+    }
 
-    return sub {
-        my ($self) = @_;
+    # reinstall filter
+    if ($self->{sent} == 1) {
+        $self->_install_filter($self);
+        return 0;
+    }
 
-        $self->{sent}-- if $self->{sent};
+    # write out a token
+    if ($self->tokens) {
+        my $toke = shift @{$self->{tokens}};
 
-        # ( ref count increases ) as method is matched
-        if (my $rc = delete $self->{refcount_was}) {
-            if (svref_2object($self->{globref})->REFCNT > $rc) {
+        if ($self->{sent} == 2) {
+            if(my ($ident, $stuff) = $toke =~ /(\s?\w+)(\W.*)/){
+                $self->{tokens}[0] = $stuff . $self->{tokens}[0];
+                $toke = $ident;
+            }
 
-                unless ($self->{is_anon} == 2) {                
-                    while (!_start_of_block($self->{tokens})) {
-                        my $status = Filter::Util::Call::filter_read();
-                        return $status unless $status;
-                        push @{$self->{tokens}}, $_;
-                        $_ = '';
-                    }
-                }
+            if(($self->{name}) = $toke =~ /\s?(\w+)/) {
+                *{$self->{globref}} = sub (*) {};
+            } else {
+                $self->{is_anonymous} = 1 if $toke =~ /\s?\(/;
+                $self->{is_anonymous} = 2 if $toke =~ /^\s?\{/;
 
-                my $code;
-
-                if ($self->{is_anon} > 0) {
-                    $code = $keyword_class->anon_code_generator(
-                        $self->{tokens}
-                    );
-                } else {
-                    $code = "; ". $keyword_class->code_generator(
-                        $self->{name}, $self->{tokens}
-                    );
-                }
-
-                $self->{tokens} = [$code];
+                *{$self->{globref}} = sub (&) {shift};
             }
         }
 
-        # reinstall filter
-        if ($self->{sent} == 1) {
-            $self->{sent} = 0;
-            install_filter($self);
-            $self->{refcount_was} = svref_2object($self->{globref})->REFCNT;
-            return 0;
-        }
+        $_ = $toke;
+        return 1;
+    }
 
-        # write out a token
-        if (@{$self->{tokens}}) {
+    my $status = Filter::Util::Call::filter_read();
+    return $status unless $status;
+    return 1 if ($self->{sent} == 0 && $_ !~ $self->keyword);
 
-            my $toke = shift @{$self->{tokens}};
+    $self->{tokens} = [ split /(?=\s)/, $_ ];
 
-            if ($self->{sent} == 2) {
-                if(my ($ident, $stuff) = $toke =~ /(\s?\w+)(\W.*)/){
-                    $self->{tokens}[0] = $stuff . $self->{tokens}[0];
-                    $toke = $ident;
-                }
-                
-                if(($self->{name}) = $toke =~ /\s?(\w+)/) {
-                    *{$self->{globref}} = sub (*) {};
-                } else {
-                    # 2 == anon with sig.
-                    $self->{is_anon} = 1 if $toke =~ /\s?\(/;
-                    $self->{is_anon} = 2 if $toke =~ /^\s?\{/;
+    $_ = '';
 
-                    *{$self->{globref}} = sub (&) {shift};
-                }
-            }
+    # write out tokens till keyword found
+    while (my $tok = shift @{$self->{tokens}}) {
+        if ($tok !~ $self->keyword) {
+            $_ .= $tok;
+        } else {
+            # TODO handler method{ / method( / ;method
+            $_ .= $tok;
 
-            $_ = $toke;
+            $self->{sent} = 3;
             return 1;
         }
-
-        my $status = Filter::Util::Call::filter_read();
-        return $status unless $status;
-
-        return 1 if ($self->{sent} == 0 && $_ !~ /$keyword/);
-
-        $self->{tokens} = [ split /(?=\s)/, $_ ];
-
-        $_ = '';
-
-        while (my $tok = shift @{$self->{tokens}}) {
-            if ($tok !~ /$keyword/) {
-                $_ .= $tok;
-            } else {
-                # TODO handler method{ / method( / ;method
-                $_ .= $tok;
-                $self->{sent} = 3;
-                return 1;
-            }
-        }
     }
 }
 
-sub _start_of_block {
-    for my $tok (@{shift()}) {
-        return 1 if $tok =~ /\{/;
+sub _scan_till_block {
+    my ($self) = @_;
+
+    while (!first { /\{/ } $self->tokens) {
+        my $status = Filter::Util::Call::filter_read();
+        return $status unless $status;
+        
+        push @{$self->{tokens}}, $_;
+        $_ = '';
     }
+
+    return 1;
 }
 
 1;
@@ -155,55 +132,64 @@ __END__
 Devel::Declare::Evil - safe keywords using a source filter.
 
 =head1 SYNOPSIS
+    package MethodKeyword;
+    use base 'Devel::Declare::Evil';
 
-    package EvilMethods;
-    use Devel::Declare::Evil;
+    sub import { shift->install(name => 'method', into => caller) }
 
-    keyword method => sub {
-        my ($class, $name, $tokens) = @_;
+    sub named_inject {
+        my ($self) = @_;
 
-        my $snippet = join ' ', @$tokens;
+        return "sub $self->{name} {\n my (\$self"
+            . unroller($self->tokens);    
+    };
+
+    sub unroller {
+        my (@tokens) = @_;
+
+        my $snippet = join '', @tokens;
         my $unroll = ') = @_;';
 
-        if ($snippet =~ /^\s*\((.+)\)/) {
+        if ($snippet =~ m/\s*\((.+)\)\s+/s) {
             $unroll = ", $1) = \@_;";
         }
 
-        return "sub $name {\n my (\$self $unroll";    
-    };
-    1;
+        return $unroll;
+    }
 
     # Somewhere in another file
     package Bob;
-    use EvilMethods;
-
-    method new {
-        return bless {}, $self;
-    }
+    use MethodKeyword;
 
     method say_hello ($name) {
        say "Hi, $name!"; 
     }
 
-    1;
-
-=head1 EXPERIMENTAL
-
-This module is not at all robust (yet) the following cases will break it: 
-
-- Injection into anonymous blocks (not supported yet)
-- New lines in signatures
-- No whitespace after method name
-
 =head1 HOW IT WORKS
 
-Installs an empty sub with a glob prototype for your keyword. Then records the current reference count of the keywords symbol.
-Filters through your code using Filter::Util::Call when a keyword is reached it's sent on to the perl interpreter.
-As the interpreter recognises the prototype the ref count for the symbol increases, allowing safe execution of your filter.
-The filter closes the call to the keyword and injects whatever code it needed.
-For the previous example the compiler actually ends up interpreting:
+- Install an empty sub with a glob prototype for a keyword
+
+- Record current reference count of the keywords symbol.
+
+- Filter through code using Filter::Util::Call feeding code on to the perl interpeter one token at a time.
+
+- As the interpreter recognises the prototype the ref count for the symbol increases, allowing safe injection.
+
+- The filter closes the call to the keyword and injects whatever code it needed.
+
+- For the synopsis example the compiler actually ends up interpreting:
 
     method; sub say_hello { my ($self, $name) = @_; ... }
+
+=head1 METHODS
+
+=head2 tokens - array of read tokens
+
+=head2 keyword
+
+=head2 name - name of sub
+
+=head2 is_anonymous 
 
 =head1 SEE ALSO
 
@@ -221,14 +207,15 @@ http://github.com/robinedwards/Devel-Declare-Evil
 
 Matt S Trout - E<lt>mst@shadowcat.co.ukE<gt> - original author of Evil.pm E<gt>
 
-Robin Edwards, E<lt>robin.ge@gmail.comE<gt> - abstracted it into this module
+Robin Edwards, E<lt>robin.ge@gmail.comE<gt> - adapted concept into this module.
 
 =head1 COPYRIGHT AND LICENSE
 
 Copyright (C) 2010 by Robin Edwards
 
 This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself, either Perl version 5.12.1 or,
+it under the same terms as Perl itself, either Perl version 5 or,
 at your option, any later version of Perl 5 you may have available.
 
 =cut
+

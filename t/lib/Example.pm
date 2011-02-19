@@ -1,7 +1,9 @@
 package Example;
 use lib 't/lib';
-use strictures 1;
-use EvilMethods;
+use strict;
+use warnings;
+#use strictures 1;
+use MethodKeyword;
 
 method new {
     return bless {}, $self;

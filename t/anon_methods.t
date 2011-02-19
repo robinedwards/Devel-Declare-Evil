@@ -1,11 +1,11 @@
 use strictures 1;
 use lib 't/lib';
 use Test::More tests => 4;
-use_ok 'AnonMethodsExample';
+use_ok 'AnonExample';
 
-my $obj = AnonMethodsExample->new;
+my $obj = AnonExample->new;
 
-isa_ok $obj, 'AnonMethodsExample';
+isa_ok $obj, 'AnonExample';
 
 my $code = $obj->some_closure;
 
