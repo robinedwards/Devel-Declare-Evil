@@ -17,30 +17,29 @@ sub named_inject {
 sub anonymous_inject {
     my ($self) = @_;
 
-    return 'BEGIN { MethodKeyword::anonymous_eos }'
+    return 
+    'BEGIN { MethodKeyword::anonymous_eos('
+    . $self->is_anonymous . ') }'
     .' my ($self' . unroller($self->tokens);
 }
 
 sub unroller {
-    my (@tokens) = @_;
-
-    my $snippet = join '', @tokens;
-    my $unroll = ') = @_;';
-
-    if ($snippet =~ m/\s*\((.+)\)\s+/s) {
-        $unroll = ", $1) = \@_;";
-    }
-
-    return $unroll;
+    (join ('', @_) =~ m/\s*\((.+)\)\s+/s) ? ", $1) = \@_;" : ') = @_;';
 }
 
 sub anonymous_eos {
+    my ($close_brace) = @_;
     on_scope_end {
+        warn "called $close_brace\n";
         Filter::Util::Call::filter_add(sub {
-                my $status = Filter::Util::Call::filter_read();
+                my $status = Filter::Util::Call::filter_read(1);
+                return $status unless $status;
 
-                warn "read: $_";
-                return $status;
+                die "expecting end of block??!" unless $_ eq '}';
+                $_ = $close_brace == 1 ? '});' : '};'; 
+
+                Filter::Util::Call::filter_del();
+                return 1;
             }
         );
     };

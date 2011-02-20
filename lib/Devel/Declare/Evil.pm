@@ -74,6 +74,9 @@ sub filter {
                 $toke = $ident;
             }
 
+            no warnings 'redefine';
+            no warnings 'prototype'; 
+
             if(($self->{name}) = $toke =~ /\s?(\w+)/) {
                 *{$self->{globref}} = sub (*) {};
             } else {

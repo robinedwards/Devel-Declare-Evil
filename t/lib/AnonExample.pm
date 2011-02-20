@@ -5,11 +5,18 @@ use MethodKeyword;
 
 sub new { return bless {}, __PACKAGE__; }
 
-sub some_closure {
+sub test_closure1 {
     my $self = shift;
     return method {
         return 1 if $self;
-    };
+    }
+}
+
+sub test_closure2 {
+    my $self = shift;
+    return method {
+        return 1 if $self;
+    }
 }
 
 1;
