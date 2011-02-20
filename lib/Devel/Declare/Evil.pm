@@ -1,5 +1,6 @@
 package Devel::Declare::Evil;
 use strictures 1;
+use Data::Dumper;
 use List::Util 'first';
 use B 'svref_2object';
 require Filter::Util::Call;
@@ -45,7 +46,6 @@ sub filter {
     # ( ref count increases ) as method is matched
     if (my $rc = delete $self->{refcount_was}) {
         if (svref_2object($self->{globref})->REFCNT > $rc) {
-
             unless ($self->is_anonymous == 2) { 
                 return unless $self->_scan_till_block;
             }
@@ -69,21 +69,28 @@ sub filter {
         my $toke = shift @{$self->{tokens}};
 
         if ($self->{sent} == 2) {
-            if(my ($ident, $stuff) = $toke =~ /(\s?\w+)(\W.*)/){
-                $self->{tokens}[0] = $stuff . $self->{tokens}[0];
-                $toke = $ident;
-            }
-
             no warnings 'redefine';
             no warnings 'prototype'; 
 
-            if(($self->{name}) = $toke =~ /\s?(\w+)/) {
+            if(($self->{name}) = $toke =~ /\s?([a-zA-Z]\w+)/) {
+                if(my ($ident, $stuff) = $toke =~ /(\s?\w+)(\W.*)/){
+                    $self->{tokens}[0] = $stuff . $self->{tokens}[0];
+                    $toke = $ident;
+                }
                 *{$self->{globref}} = sub (*) {};
             } else {
-                $self->{is_anonymous} = 1 if $toke =~ /\s?\(/;
-                $self->{is_anonymous} = 2 if $toke =~ /^\s?\{/;
+                if(my ($start, $stuff) = $toke =~ /^(\s?\()(.+)/) {
+                    $self->{tokens}[0] = $stuff . $self->{tokens}[0] if $stuff;
+                    $toke = $start if $start;
+                }
 
-                *{$self->{globref}} = sub (&) {shift};
+                if( $toke =~ /^\s?\(/) {
+                    $self->{is_anonymous} = 1;
+                    *{$self->{globref}} = sub {shift};
+                } elsif ($toke =~ /^\s?\{/) {
+                    $self->{is_anonymous} = 2 if 
+                    *{$self->{globref}} = sub (&) {shift};
+                }
             }
         }
 
@@ -93,6 +100,7 @@ sub filter {
 
     my $status = Filter::Util::Call::filter_read();
     return $status unless $status;
+    warn "read $_";
     return 1 if ($self->{sent} == 0 && $_ !~ $self->keyword);
 
     $self->{tokens} = [ split /(?=\s)/, $_ ];
@@ -119,7 +127,7 @@ sub _scan_till_block {
     while (!first { /\{/ } $self->tokens) {
         my $status = Filter::Util::Call::filter_read();
         return $status unless $status;
-        
+        warn "read $_";
         push @{$self->{tokens}}, $_;
         $_ = '';
     }

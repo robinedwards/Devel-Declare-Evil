@@ -16,7 +16,7 @@ isa_ok $obj, 'AnonExample';
 {
     my $code = $obj->test_closure2;
     is ref ($code), 'CODE', 'got closure';
-    is $obj->$code(), 1, 'simple closure';
+    is $obj->$code(1,1), 2, 'simple closure';
 }
 
 

@@ -14,8 +14,9 @@ sub test_closure1 {
 
 sub test_closure2 {
     my $self = shift;
-    return method {
-        return 1 if $self;
+    return method ($a, $b) {
+        die "FIXME";
+        return ($a + $b) if $self;
     }
 }
 
